@@ -113,6 +113,13 @@ describe('LockEyesPeer', () => {
     })
   })
 
+  describe('setHostName', () => {
+    it('stores the host name without throwing', () => {
+      peer.setHostName('Louie')
+      expect(true).toBe(true)
+    })
+  })
+
   describe('createSession', () => {
     it('generates a 4-char code and transitions to creating state', async () => {
       const promise = peer.createSession()

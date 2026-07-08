@@ -86,6 +86,9 @@ export class LockEyesPeer {
   // The 4-char session code (for host).
   private sessionCode: string | null = null
 
+  // The host's display name (set by the renderer before createSession).
+  private hostName: string | null = null
+
   // The partner's name (received during handshake).
   private partnerName: string | null = null
 
@@ -131,6 +134,16 @@ export class LockEyesPeer {
   }
 
   /**
+   * Set the host's display name. Must be called before createSession() so the
+   * name is available when sending the accept message to the guest.
+   *
+   * @param name The host's display name.
+   */
+  setHostName(name: string): void {
+    this.hostName = name
+  }
+
+  /**
    * Get the remote partner's video stream (null if not connected).
    */
   getRemoteStream(): MediaStream | null {
@@ -158,7 +171,7 @@ export class LockEyesPeer {
       // If the ID is already taken (collision with another active session
       // using the same code), PeerJS will emit an 'error' event with type
       // 'unavailable-id'. We handle that by generating a new code and retrying.
-      this.peer = new Peer('lockeyes-' + code)
+      this.peer = new Peer('lockeyes-' + code.toUpperCase())
 
       this.peer.on('open', () => {
         // Peer is registered with the PeerJS signaling server.
@@ -280,8 +293,8 @@ export class LockEyesPeer {
       return
     }
 
-    // Send acceptance to the guest.
-    this.dataConnection.send({ type: 'accept', name: this.partnerName || 'Partner' })
+    // Send acceptance to the guest, with the HOST's name (not the guest's).
+    this.dataConnection.send({ type: 'accept', name: this.hostName || 'Host' })
 
     // Initiate the media call with the local camera stream.
     if (this.remotePeerId && this.localStream && this.peer) {

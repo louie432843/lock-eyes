@@ -100,6 +100,25 @@ describe('Static Analysis', () => {
       expect(main).toContain("'media'")
       expect(main).toContain("'camera'")
     })
+
+    it('sets a Content-Security-Policy via onHeadersReceived', () => {
+      expect(main).toContain('onHeadersReceived')
+      expect(main).toContain('Content-Security-Policy')
+      expect(main).toContain('script-src')
+    })
+
+    it('allows unsafe-eval in dev mode CSP (for Vite HMR)', () => {
+      expect(main).toContain('unsafe-eval')
+    })
+
+    it('uses copyGeneratedMediaStreamTrack for reaction window track passing', () => {
+      expect(main).toContain('copyGeneratedMediaStreamTrack')
+    })
+
+    it('does NOT have any stale references to electron/peer.ts', () => {
+      expect(main).not.toContain('from electron/peer.ts')
+      expect(main).not.toContain('class from electron/peer.ts')
+    })
   })
 
   describe('electron/preload.ts', () => {
@@ -138,6 +157,7 @@ describe('Static Analysis', () => {
     it('has all required public methods', () => {
       const methods = [
         'setLocalStream',
+        'setHostName',
         'createSession',
         'joinSession',
         'acceptHandshake',
@@ -171,6 +191,21 @@ describe('Static Analysis', () => {
 
     it('uses lockeyes- prefix for peer IDs', () => {
       expect(peer).toContain("'lockeyes-'")
+    })
+
+    it('uppercases the code in createSession for consistent peer IDs', () => {
+      expect(peer).toContain("'lockeyes-' + code.toUpperCase()")
+    })
+
+    it('has a hostName field for sending host name to guest on accept', () => {
+      expect(peer).toContain('hostName')
+      expect(peer).toContain('setHostName')
+    })
+
+    it('acceptHandshake sends hostName (not partnerName) in the accept message', () => {
+      expect(peer).toContain("this.hostName || 'Host'")
+      // Must NOT send partnerName in the accept message anymore
+      expect(peer).not.toContain("this.partnerName || 'Partner'")
     })
 
     it('handles unavailable-id error (code collision retry)', () => {
@@ -229,6 +264,22 @@ describe('Static Analysis', () => {
     it('shows the live warning banner', () => {
       expect(app).toContain('LIVE')
       expect(app).toContain("Zoom camera state")
+    })
+
+    it('has a "Your name" input on the home screen for the host', () => {
+      // The home screen should have a name input for the host
+      expect(app).toContain("placeholder=\"Your name\"")
+    })
+
+    it('handleReset recreates the LockEyesPeer instance (not just setState)', () => {
+      // handleReset should destroy the old peer and create a new one
+      expect(app).toContain('peerRef.current.destroy()')
+      expect(app).toContain('freshPeer')
+      expect(app).toContain('new LockEyesPeer()')
+    })
+
+    it('handleCreate calls setHostName before createSession', () => {
+      expect(app).toContain('setHostName')
     })
   })
 
@@ -326,14 +377,9 @@ describe('Static Analysis', () => {
       expect(app).not.toMatch(/from\s+['"]\.\.\/electron\//)
     })
 
-    it('electron/main.ts comment does not reference electron/peer.ts as renderer import', () => {
-      // The comment should have been updated to say src/peer.ts
-      const main = readSource('electron/main.ts')
-      // This is a soft check — the comment may say "electron/peer.ts" in
-      // the architecture note. Just verify it doesn't say the renderer
-      // imports from electron/ directly.
-      // We check that the import path guidance says src/peer.ts or ./peer
-      expect(main).toContain('src/peer.ts')
+    it('index.html has a Content-Security-Policy meta tag', () => {
+      const html = readSource('index.html')
+      expect(html).toContain('Content-Security-Policy')
     })
   })
 })

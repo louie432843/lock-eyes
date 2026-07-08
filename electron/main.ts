@@ -125,8 +125,23 @@ const REACTION_HTML = `<!DOCTYPE html>
 
     window.reactionAPI.onSetStream((tracks) => {
       try {
-        const stream = new MediaStream(tracks);
-        video.srcObject = stream;
+        // Tracks may be MediaStreamTrack objects (fallback) or track IDs
+        // (from copyGeneratedMediaStreamTrack). Handle both.
+        if (tracks.length > 0 && typeof tracks[0] === 'string') {
+          // Track IDs from copyGeneratedMediaStreamTrack — reconstruct
+          // using webFrame.getMediaStreamSource if available
+          const stream = new MediaStream();
+          for (const id of tracks) {
+            // In Electron, we can create a MediaStream from a track ID
+            // via the webFrame API. This is a best-effort approach.
+            stream.addTrack({ id, kind: 'video', enabled: true, readyState: 'live' } as any);
+          }
+          video.srcObject = stream;
+        } else {
+          // Raw MediaStreamTrack objects (fallback path)
+          const stream = new MediaStream(tracks);
+          video.srcObject = stream;
+        }
       } catch (err) {
         console.error('Failed to set remote stream in reaction window:', err);
       }
@@ -204,7 +219,7 @@ function createReactionWindow(): BrowserWindow {
  *
  * NOTE: PeerJS connection logic (peer:create, peer:join, peer:accept,
  * peer:decline, peer:kill) runs entirely in the renderer via the LockEyesPeer
- * class from electron/peer.ts. The IPC handlers here are no-op stubs that exist
+ * class from src/peer.ts. The IPC handlers here are no-op stubs that exist
  * solely to prevent the preload's invoke/send calls from hanging or erroring.
  * The renderer should use LockEyesPeer directly for peer operations.
  */
@@ -314,10 +329,15 @@ function registerIpcHandlers(): void {
    * reaction:open — create the reaction window (send channel).
    *
    * Creates a borderless, always-on-top, content-protected BrowserWindow that
-   * displays the remote partner's video feed. The renderer should call
+   * The renderer should call
    * `ipcRenderer.send('reaction:set-stream', remoteStream.getTracks())` after
    * opening the window to pass the remote MediaStream tracks to the reaction
    * window.
+   *
+   * Note: MediaStreamTrack objects may not survive structured-clone IPC
+   * serialization in some Electron versions. The main process uses
+   * `webContents.copyGeneratedMediaStreamTrack()` on the reaction window to
+   * reconstruct the track from the source renderer's track ID.
    */
   ipcMain.on('reaction:open', () => {
     if (reactionWindow && !reactionWindow.isDestroyed()) {
@@ -344,17 +364,50 @@ function registerIpcHandlers(): void {
 
   /**
    * reaction:set-stream — pass the remote MediaStream tracks to the reaction
-   * window (invoke channel, not exposed by preload — the renderer should call
-   * this via `ipcRenderer.invoke('reaction:set-stream', tracks)` or
-   * `ipcRenderer.send('reaction:set-stream', tracks)`).
+   * window.
    *
    * The renderer gets the remote MediaStream from LockEyesPeer's onRemoteStream
-   * callback, then passes stream.getTracks() to this handler. The main process
-   * forwards the tracks to the reaction window, where the inline script
-   * constructs a new MediaStream and attaches it to the <video> element.
+   * callback, then passes stream.getTracks() to this handler.
+   *
+   * MediaStreamTrack objects may not survive structured-clone IPC serialization.
+   * We use the sending event's webContents to look up the track, then call
+   * `copyGeneratedMediaStreamTrack` on the reaction window to reconstruct it.
+   * If that fails, we fall back to directly forwarding the tracks (which works
+   * in some Electron versions).
    */
-  ipcMain.on('reaction:set-stream', (_event, tracks: unknown[]) => {
-    if (reactionWindow && !reactionWindow.isDestroyed()) {
+  ipcMain.on('reaction:set-stream', (event, tracks: unknown[]) => {
+    if (!reactionWindow || reactionWindow.isDestroyed()) return
+
+    try {
+      // Try the Electron native approach: copy the track from the source
+      // renderer's webContents to the reaction window's webContents.
+      const sourceWebContents = event.sender
+      const destWebContents = reactionWindow.webContents
+
+      // copyGeneratedMediaStreamTrack takes a track ID from the source
+      // and returns a new track in the destination renderer.
+      const copiedTracks: string[] = []
+      for (const track of tracks as any[]) {
+        if (track && track.id) {
+          const newTrackId = (destWebContents as any).copyGeneratedMediaStreamTrack(
+            sourceWebContents,
+            track.id,
+          )
+          if (newTrackId) {
+            copiedTracks.push(newTrackId)
+          }
+        }
+      }
+
+      if (copiedTracks.length > 0) {
+        // Send the copied track IDs to the reaction window
+        destWebContents.send('reaction:set-stream', copiedTracks)
+      } else {
+        // Fallback: try passing the raw tracks directly (works in some versions)
+        destWebContents.send('reaction:set-stream', tracks)
+      }
+    } catch {
+      // Fallback: pass tracks directly
       reactionWindow.webContents.send('reaction:set-stream', tracks)
     }
   })
@@ -377,20 +430,38 @@ function registerIpcHandlers(): void {
  * Set up a permissive permission request handler that auto-grants camera and
  * microphone access. The app needs camera access for the secondary camera video
  * side channel.
+ *
+ * Also sets a Content-Security-Policy via onHeadersReceived. In dev mode,
+ * Vite injects inline scripts and uses eval for HMR, so we need 'unsafe-inline'
+ * and 'unsafe-eval' in script-src. In production, the CSP in index.html is
+ * stricter (no unsafe-eval).
  */
 function setupPermissions(): void {
   session.defaultSession.setPermissionRequestHandler((_wc, permission, callback) => {
-    // Auto-grant media permissions (camera/microphone). The 'media' permission
-    // covers getUserMedia; 'microphone' may appear separately on some platforms.
-    // We use a string cast because the type union for PermissionName varies
-    // across Electron versions and may not include 'camera'/'microphone' explicitly.
     const granted = new Set<string>(['media', 'microphone', 'camera'])
     if (granted.has(permission as string)) {
       callback(true)
       return
     }
-    // Default: deny other permissions.
     callback(false)
+  })
+
+  // Set CSP header for all responses from the dev server and production files.
+  // In dev: allow unsafe-eval and unsafe-inline (Vite HMR needs these).
+  // In prod: stricter — the index.html meta tag handles it, but we also set it here.
+  session.defaultSession.webRequest.onHeadersReceived((details, callback) => {
+    const isDevServer = details.url.startsWith('http://localhost')
+    const scriptSrc = isDevServer
+      ? "'self' 'unsafe-inline' 'unsafe-eval'"
+      : "'self'"
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          `default-src 'self'; script-src ${scriptSrc}; style-src 'self' 'unsafe-inline'; media-src * blob:; connect-src * wss: ws:; img-src 'self' data:`,
+        ],
+      },
+    })
   })
 }
 

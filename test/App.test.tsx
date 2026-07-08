@@ -21,6 +21,7 @@ const mockPeerInstance = {
   declineHandshake: vi.fn(),
   killConnection: vi.fn(),
   setLocalStream: vi.fn(),
+  setHostName: vi.fn(),
   destroy: vi.fn(),
   getRemoteStream: vi.fn().mockReturnValue(null),
 }

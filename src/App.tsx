@@ -203,6 +203,8 @@ export default function App() {
   /** User clicked "Create Session" — calls peer.createSession() */
   const handleCreate = useCallback(async () => {
     if (!peerRef.current) return
+    // Pass the host's name so it can be sent to the guest on accept.
+    peerRef.current.setHostName(yourName.trim() || 'Host')
     try {
       const code = await peerRef.current.createSession()
       setSessionCode(code)
@@ -210,7 +212,7 @@ export default function App() {
       console.error('Create session failed:', err)
       setErrorMsg('Failed to create session. Try again.')
     }
-  }, [])
+  }, [yourName])
 
   /** User clicked "Join" — calls peer.joinSession(code, name) */
   const handleJoin = useCallback(async () => {
@@ -245,8 +247,45 @@ export default function App() {
     peerRef.current?.killConnection()
   }, [])
 
-  /** Reset to idle — clear all session state */
+  /** Reset to idle — clear all session state and recreate the peer */
   const handleReset = useCallback(() => {
+    // Destroy the old peer and create a fresh one to avoid stale state.
+    if (peerRef.current) {
+      peerRef.current.destroy()
+    }
+    const freshPeer = new LockEyesPeer()
+    freshPeer.onStateChange = (newState: ConnectionState) => {
+      setState(newState)
+      if (newState === 'dark' || newState === 'error') {
+        setPartnerName('')
+      }
+    }
+    freshPeer.onPartnerName = (name: string) => {
+      setPartnerName(name)
+    }
+    freshPeer.onHandshakeRequest = (request: { partnerName: string }) => {
+      setHandshakePartner(request.partnerName)
+    }
+    freshPeer.onRemoteStream = (stream: MediaStream) => {
+      remoteStreamRef.current = stream
+      if (remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = stream
+      }
+      try {
+        window.electronAPI.sendReactionStream(stream.getTracks())
+      } catch {
+        // ignore
+      }
+    }
+    freshPeer.onError = (message: string) => {
+      setErrorMsg(message)
+    }
+    // Re-attach local camera stream if still active
+    if (localStreamRef.current) {
+      freshPeer.setLocalStream(localStreamRef.current)
+    }
+    peerRef.current = freshPeer
+
     setState('idle')
     setSessionCode('')
     setPartnerName('')
@@ -321,6 +360,13 @@ export default function App() {
             {idleMode === 'home' && (
               <>
                 <p className="subtitle">Private 1:1 video side channel</p>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder="Your name"
+                  value={yourName}
+                  onChange={(e) => setYourName(e.target.value)}
+                />
                 <button className="btn btn-primary" onClick={handleCreate}>
                   Create Session
                 </button>
