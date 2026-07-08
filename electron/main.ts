@@ -20,7 +20,7 @@
  *   - PeerJS runs in the renderer (it needs MediaStream from getUserMedia).
  *   - main.ts handles: window management, reaction window, camera enumeration,
  *     permissions, and IPC stubs for peer:* channels.
- *   - peer.ts exports LockEyesPeer which the renderer imports directly.
+ *   - src/peer.ts exports LockEyesPeer which the renderer imports directly.
  *   - main.ts registers IPC handlers for peer:create/join/accept/decline/kill as
  *     no-ops (the renderer uses LockEyesPeer directly), but they MUST be registered
  *     so the preload's ipcRenderer.invoke() calls don't hang.

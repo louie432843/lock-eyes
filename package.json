@@ -7,6 +7,8 @@
     "dev": "vite",
     "build": "tsc && vite build && electron-builder",
     "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "electron:dev": "concurrently \"vite\" \"wait-on tcp:5173 && electron .\"",
     "package": "electron-builder",
     "package:mac": "electron-builder --mac",
@@ -19,15 +21,19 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "concurrently": "^9.0.1",
     "electron": "^32.0.1",
     "electron-builder": "^25.0.5",
+    "jsdom": "^25.0.1",
     "typescript": "^5.5.4",
     "vite": "^5.4.2",
     "vite-plugin-electron": "^1.1.0",
+    "vitest": "^2.1.9",
     "wait-on": "^8.0.0"
   },
   "build": {
@@ -42,13 +48,19 @@
     ],
     "mac": {
       "category": "public.app-category.social-networking",
-      "target": ["dmg"]
+      "target": [
+        "dmg"
+      ]
     },
     "win": {
-      "target": ["nsis"]
+      "target": [
+        "nsis"
+      ]
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "category": "Network"
     }
   }
