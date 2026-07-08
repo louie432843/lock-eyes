@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { LockEyesPeer, type ConnectionState } from '../electron/peer'
+import { LockEyesPeer, type ConnectionState } from './peer'
 import Handshake from './Handshake'
 
 // ---------------------------------------------------------------------------
@@ -91,11 +91,10 @@ export default function App() {
       if (remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = stream
       }
-      // Pass the stream's tracks to the reaction window via IPC
+      // Pass the stream's tracks to the reaction window via the preload API
       // (the main process forwards them to the reaction window's video element)
       try {
-        const { ipcRenderer } = require('electron')
-        ipcRenderer.send('reaction:set-stream', stream.getTracks())
+        window.electronAPI.sendReactionStream(stream.getTracks())
       } catch {
         // IPC may not be available in dev mode without electron — ignore
       }

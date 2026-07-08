@@ -61,12 +61,13 @@ function createMainWindow(): BrowserWindow {
     backgroundColor: '#0a0a0a',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      // contextIsolation must be false for the preload's direct export style to
-      // work (it doesn't use contextBridge.exposeInMainWorld).
-      contextIsolation: false,
-      // nodeIntegration is needed for vite-plugin-electron-renderer to allow the
-      // renderer to import peerjs and electron/peer.ts as Node modules.
-      nodeIntegration: true,
+      // Electron's recommended security model:
+      // - contextIsolation: true  → renderer can't touch Node APIs directly
+      // - nodeIntegration: false → no require() in renderer, no conflict with Vite's
+      //   dev server ES module system (fixes /@react-refresh and /@vite/client errors)
+      // The preload uses contextBridge.exposeInMainWorld() to safely expose IPC APIs.
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   })
 
@@ -119,12 +120,10 @@ const REACTION_HTML = `<!DOCTYPE html>
 <body>
   <video id="remote-video" autoplay playsinline></video>
   <script>
-    const { ipcRenderer } = require('electron');
+    // reactionAPI is exposed by the reaction-preload via contextBridge.
     const video = document.getElementById('remote-video');
 
-    // When the main process forwards the remote stream's tracks, construct a
-    // MediaStream and attach it to the video element.
-    ipcRenderer.on('reaction:set-stream', (_event, tracks) => {
+    window.reactionAPI.onSetStream((tracks) => {
       try {
         const stream = new MediaStream(tracks);
         video.srcObject = stream;
@@ -133,8 +132,7 @@ const REACTION_HTML = `<!DOCTYPE html>
       }
     });
 
-    // Clear the stream when requested.
-    ipcRenderer.on('reaction:clear-stream', () => {
+    window.reactionAPI.onClearStream(() => {
       video.srcObject = null;
     });
   </script>
@@ -166,8 +164,9 @@ function createReactionWindow(): BrowserWindow {
     // This is the key privacy feature: the Lock Eyes side channel can't be
     // accidentally shared in the main video call.
     webPreferences: {
-      contextIsolation: false,
-      nodeIntegration: true,
+      preload: path.join(__dirname, 'reaction-preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false,
     },
   })
 
