@@ -120,6 +120,58 @@ describe('LockEyesPeer', () => {
     })
   })
 
+  describe('sendChatMessage', () => {
+    it('does not throw when no data connection is open', () => {
+      // No dataConnection set — should silently return
+      peer.sendChatMessage('hello', 'Alice')
+      expect(true).toBe(true)
+    })
+  })
+
+  describe('chat message handling', () => {
+    it('fires onChatMessage when a chat message arrives over the data connection', async () => {
+      let receivedChat: any = null
+      peer.onChatMessage = (msg) => { receivedChat = msg }
+
+      // Start as host
+      peer.createSession().catch(() => {})
+      await vi.waitFor(() => { expect(stateLog).toContain('waiting') })
+
+      const mockPeer = (peer as any).peer as any
+      const conn = new (mockPeer.constructor as any)('guest-123')
+      conn.open = true
+      mockPeer.emit('connection', conn)
+
+      // Simulate guest sending a chat message
+      conn.emit('data', { type: 'chat', text: 'hey there', sender: 'Alice', timestamp: 12345 })
+
+      expect(receivedChat).not.toBeNull()
+      expect(receivedChat.text).toBe('hey there')
+      expect(receivedChat.sender).toBe('Alice')
+      expect(receivedChat.timestamp).toBe(12345)
+    })
+
+    it('handles chat messages with missing fields gracefully', async () => {
+      let receivedChat: any = null
+      peer.onChatMessage = (msg) => { receivedChat = msg }
+
+      peer.createSession().catch(() => {})
+      await vi.waitFor(() => { expect(stateLog).toContain('waiting') })
+
+      const mockPeer = (peer as any).peer as any
+      const conn = new (mockPeer.constructor as any)('guest-456')
+      conn.open = true
+      mockPeer.emit('connection', conn)
+
+      // Missing text and sender
+      conn.emit('data', { type: 'chat' })
+
+      expect(receivedChat).not.toBeNull()
+      expect(receivedChat.text).toBe('')
+      expect(receivedChat.sender).toBe('Partner')
+    })
+  })
+
   describe('createSession', () => {
     it('generates a 4-char code and transitions to creating state', async () => {
       const promise = peer.createSession()

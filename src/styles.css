@@ -548,3 +548,109 @@ html, body {
 .error-screen .icon-large {
   color: var(--danger);
 }
+
+/* ---------------------------------------------------------------------------
+   Streaming chat — no history, messages fade after 8 seconds
+   --------------------------------------------------------------------------- */
+
+.chat-overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  background: rgba(10, 10, 10, 0.95);
+  border-top: 1px solid var(--border);
+  padding: 0;
+  z-index: 100;
+  max-height: 280px;
+}
+
+.chat-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 16px;
+  max-height: 200px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.chat-stream::-webkit-scrollbar {
+  width: 4px;
+}
+.chat-stream::-webkit-scrollbar-track {
+  background: transparent;
+}
+.chat-stream::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+.chat-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 184, 0, 0.08);
+  border-left: 3px solid var(--accent);
+  animation: chat-stream-in 0.3s ease-out, chat-fade-out 1s ease-in 7s forwards;
+}
+
+.chat-sender {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.chat-text {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.chat-input-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-input {
+  flex: 1;
+  font-size: 14px;
+}
+
+.chat-send {
+  flex-shrink: 0;
+  padding: 8px 16px;
+}
+
+/* Stream-in animation: slide up + fade in */
+@keyframes chat-stream-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Fade-out animation: message disappears after 8 seconds */
+@keyframes chat-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}

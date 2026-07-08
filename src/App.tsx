@@ -17,7 +17,7 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { LockEyesPeer, type ConnectionState } from './peer'
+import { LockEyesPeer, type ConnectionState, type ChatMessage } from './peer'
 import Handshake from './Handshake'
 
 // ---------------------------------------------------------------------------
@@ -56,6 +56,10 @@ export default function App() {
   const [idleMode, setIdleMode] = useState<IdleMode>('home')
   const [joinCode, setJoinCode] = useState<string>('')
   const [yourName, setYourName] = useState<string>('')
+
+  // --- Streaming chat state (no history — if you don't see it, you miss it) ---
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatInput, setChatInput] = useState<string>('')
 
   // --- Video element refs -----------------------------------------------------
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -102,6 +106,15 @@ export default function App() {
 
     peer.onError = (message: string) => {
       setErrorMsg(message)
+    }
+
+    peer.onChatMessage = (message: ChatMessage) => {
+      // Stream the message in — add to list, then remove after 8 seconds.
+      // No history stored. If you don't see it, you miss it.
+      setChatMessages((prev) => [...prev, message])
+      setTimeout(() => {
+        setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
+      }, 8000)
     }
 
     return () => {
@@ -247,6 +260,22 @@ export default function App() {
     peerRef.current?.killConnection()
   }, [])
 
+  /** Send a streaming chat message — no history, if they don't see it, they miss it */
+  const handleSendChat = useCallback(() => {
+    const text = chatInput.trim()
+    if (!text || !peerRef.current) return
+    const sender = yourName.trim() || 'You'
+    // Show our own message in the stream
+    const message: ChatMessage = { text, sender, timestamp: Date.now() }
+    setChatMessages((prev) => [...prev, message])
+    setTimeout(() => {
+      setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
+    }, 8000)
+    // Send to partner
+    peerRef.current.sendChatMessage(text, sender)
+    setChatInput('')
+  }, [chatInput, yourName])
+
   /** Reset to idle — clear all session state and recreate the peer */
   const handleReset = useCallback(() => {
     // Destroy the old peer and create a fresh one to avoid stale state.
@@ -280,6 +309,12 @@ export default function App() {
     freshPeer.onError = (message: string) => {
       setErrorMsg(message)
     }
+    freshPeer.onChatMessage = (message: ChatMessage) => {
+      setChatMessages((prev) => [...prev, message])
+      setTimeout(() => {
+        setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
+      }, 8000)
+    }
     // Re-attach local camera stream if still active
     if (localStreamRef.current) {
       freshPeer.setLocalStream(localStreamRef.current)
@@ -293,6 +328,8 @@ export default function App() {
     setErrorMsg('')
     setJoinCode('')
     setIdleMode('home')
+    setChatMessages([])
+    setChatInput('')
   }, [])
 
   /** Retry from error state */
@@ -504,6 +541,36 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* ============ STREAMING CHAT (no history — if you don't see it, you miss it) ============ */}
+      {(state === 'live' || state === 'waiting' || state === 'handshake') && (
+        <div className="chat-overlay">
+          <div className="chat-stream">
+            {chatMessages.map((msg) => (
+              <div key={msg.timestamp} className="chat-bubble chat-stream-in">
+                <span className="chat-sender">{msg.sender}</span>
+                <span className="chat-text">{msg.text}</span>
+              </div>
+            ))}
+          </div>
+          <div className="chat-input-row">
+            <input
+              className="input chat-input"
+              type="text"
+              placeholder="Type a message… (no history)"
+              value={chatInput}
+              maxLength={200}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleSendChat()
+              }}
+            />
+            <button className="btn btn-secondary chat-send" onClick={handleSendChat} disabled={!chatInput.trim()}>
+              Send
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

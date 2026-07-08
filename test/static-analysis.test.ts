@@ -158,6 +158,7 @@ describe('Static Analysis', () => {
       const methods = [
         'setLocalStream',
         'setHostName',
+        'sendChatMessage',
         'createSession',
         'joinSession',
         'acceptHandshake',
@@ -177,6 +178,7 @@ describe('Static Analysis', () => {
         'onPartnerName',
         'onRemoteStream',
         'onError',
+        'onChatMessage',
       ]
       for (const cb of callbacks) {
         expect(peer).toContain(cb), `Missing callback: ${cb}`
@@ -206,6 +208,15 @@ describe('Static Analysis', () => {
       expect(peer).toContain("this.hostName || 'Host'")
       // Must NOT send partnerName in the accept message anymore
       expect(peer).not.toContain("this.partnerName || 'Partner'")
+    })
+
+    it('exports ChatMessage interface', () => {
+      expect(peer).toContain('export interface ChatMessage')
+    })
+
+    it('handles chat message type in handleDataMessage', () => {
+      expect(peer).toContain("case 'chat'")
+      expect(peer).toContain('onChatMessage')
     })
 
     it('handles unavailable-id error (code collision retry)', () => {
@@ -280,6 +291,33 @@ describe('Static Analysis', () => {
 
     it('handleCreate calls setHostName before createSession', () => {
       expect(app).toContain('setHostName')
+    })
+
+    it('has streaming chat UI with chat overlay', () => {
+      expect(app).toContain('chat-overlay')
+      expect(app).toContain('chat-stream')
+      expect(app).toContain('chat-bubble')
+    })
+
+    it('has chat input with no-history placeholder', () => {
+      expect(app).toContain('no history')
+    })
+
+    it('imports ChatMessage type from peer', () => {
+      expect(app).toContain('ChatMessage')
+    })
+
+    it('has handleSendChat function', () => {
+      expect(app).toContain('handleSendChat')
+      expect(app).toContain('sendChatMessage')
+    })
+
+    it('shows chat overlay in live, waiting, and handshake states', () => {
+      expect(app).toContain("'live'")
+      expect(app).toContain("'waiting'")
+      expect(app).toContain("'handshake'")
+      // The chat overlay condition should include these states
+      expect(app).toMatch(/state === 'live' .* state === 'waiting'/)
     })
   })
 
@@ -380,6 +418,15 @@ describe('Static Analysis', () => {
     it('index.html has a Content-Security-Policy meta tag', () => {
       const html = readSource('index.html')
       expect(html).toContain('Content-Security-Policy')
+    })
+
+    it('styles.css has streaming chat styles', () => {
+      const css = readSource('src/styles.css')
+      expect(css).toContain('.chat-overlay')
+      expect(css).toContain('.chat-bubble')
+      expect(css).toContain('.chat-stream')
+      expect(css).toContain('chat-stream-in')
+      expect(css).toContain('chat-fade-out')
     })
   })
 })

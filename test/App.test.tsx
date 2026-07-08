@@ -15,6 +15,7 @@ const mockPeerInstance = {
   onPartnerName: null as any,
   onRemoteStream: null as any,
   onError: null as any,
+  onChatMessage: null as any,
   createSession: vi.fn(),
   joinSession: vi.fn(),
   acceptHandshake: vi.fn(),
@@ -22,6 +23,7 @@ const mockPeerInstance = {
   killConnection: vi.fn(),
   setLocalStream: vi.fn(),
   setHostName: vi.fn(),
+  sendChatMessage: vi.fn(),
   destroy: vi.fn(),
   getRemoteStream: vi.fn().mockReturnValue(null),
 }
@@ -213,6 +215,100 @@ describe('App', () => {
       await waitFor(() => {
         expect(screen.getByText('Share this code with your friend')).toBeTruthy()
       })
+    })
+  })
+
+  describe('streaming chat', () => {
+    it('shows chat input when in live state', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+    })
+
+    it('shows chat input when in waiting state', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('waiting')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+    })
+
+    it('does NOT show chat input in idle state', () => {
+      render(<App />)
+      expect(screen.queryByPlaceholderText('Type a message… (no history)')).toBeNull()
+    })
+
+    it('calls sendChatMessage when Send is clicked with text', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      const input = screen.getByPlaceholderText('Type a message… (no history)') as HTMLInputElement
+      fireEvent.change(input, { target: { value: 'did you see that?' } })
+      fireEvent.click(screen.getByText('Send'))
+
+      expect(mockPeerInstance.sendChatMessage).toHaveBeenCalledWith('did you see that?', expect.any(String))
+    })
+
+    it('does NOT call sendChatMessage when input is empty', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      // Send button should be disabled
+      const sendBtn = screen.getByText('Send')
+      expect(sendBtn.getAttribute('disabled')).not.toBeNull()
+    })
+
+    it('displays incoming chat messages in the stream', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Katherine')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      // Simulate incoming chat message
+      mockPeerInstance.onChatMessage?.({
+        text: 'can you believe this guy?',
+        sender: 'Katherine',
+        timestamp: Date.now(),
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText('can you believe this guy?')).toBeTruthy()
+        expect(screen.getByText('Katherine')).toBeTruthy()
+      })
+    })
+
+    it('sends chat on Enter key press', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      const input = screen.getByPlaceholderText('Type a message… (no history)')
+      fireEvent.change(input, { target: { value: 'wow' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+
+      expect(mockPeerInstance.sendChatMessage).toHaveBeenCalledWith('wow', expect.any(String))
     })
   })
 })

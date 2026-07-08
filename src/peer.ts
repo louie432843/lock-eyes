@@ -63,6 +63,13 @@ export interface HandshakeRequest {
   partnerName: string
 }
 
+/** A transient chat message — no history, if you don't see it stream in, you miss it. */
+export interface ChatMessage {
+  text: string
+  sender: string
+  timestamp: number
+}
+
 // ---------------------------------------------------------------------------
 // LockEyesPeer class
 // ---------------------------------------------------------------------------
@@ -119,6 +126,10 @@ export class LockEyesPeer {
    *  window via the `reaction:set-stream` IPC channel. */
   onRemoteStream: ((stream: MediaStream) => void) | null = null
 
+  /** Called when a transient chat message arrives. No history — if you
+   *  don't see it stream in, you miss it. */
+  onChatMessage: ((message: ChatMessage) => void) | null = null
+
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
@@ -141,6 +152,25 @@ export class LockEyesPeer {
    */
   setHostName(name: string): void {
     this.hostName = name
+  }
+
+  /**
+   * Send a transient chat message to the partner over the data connection.
+   * No history is stored — if the partner doesn't see it stream in, they miss it.
+   *
+   * @param text The message text.
+   * @param sender The sender's display name.
+   */
+  sendChatMessage(text: string, sender: string): void {
+    if (!this.dataConnection || !this.dataConnection.open) {
+      return
+    }
+    this.dataConnection.send({
+      type: 'chat',
+      text,
+      sender,
+      timestamp: Date.now(),
+    })
   }
 
   /**
@@ -389,6 +419,7 @@ export class LockEyesPeer {
    *   - {type: 'request', name}   → Guest wants to lock eyes (host receives)
    *   - {type: 'accept', name}     → Host accepted (guest receives)
    *   - {type: 'decline'}          → Host declined (guest receives)
+   *   - {type: 'chat', text, sender, timestamp} → Transient chat message
    */
   private handleDataMessage(data: any): void {
     if (!data || typeof data.type !== 'string') return
@@ -418,6 +449,17 @@ export class LockEyesPeer {
         // Host declined the handshake (guest side).
         this.setState('dark')
         this.cleanup()
+        break
+      }
+
+      case 'chat': {
+        // Transient chat message — no history, stream it in.
+        const message: ChatMessage = {
+          text: data.text || '',
+          sender: data.sender || 'Partner',
+          timestamp: data.timestamp || Date.now(),
+        }
+        this.onChatMessage?.(message)
         break
       }
     }
