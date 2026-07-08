@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lock Eyes — Reaction</title>
+  <style>
+    /* Minimal styling for the reaction window: full-screen black video */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #000;
+      overflow: hidden;
+      width: 100vw;
+      height: 100vh;
+    }
+    video {
+      width: 100vw;
+      height: 100vh;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <!-- Remote video element — the partner's face fills the window -->
+  <video id="remote-video" autoplay playsinline muted></video>
+
+  <script>
+    // Listen for stream setup via IPC.
+    // The main process sends 'reaction:set-stream' with track IDs extracted
+    // from the remote MediaStream. We reconstruct a MediaStream from those
+    // track IDs and attach it to the video element.
+    //
+    // Electron allows passing MediaStreamTrack objects across IPC boundaries
+    // by their ID; we use the track's underlying source via
+    // webFrame.getMediaStreamSource() or fall back to a simpler approach
+    // where the main process passes the track and we set it directly.
+    const { ipcRenderer } = require('electron');
+
+    const video = document.getElementById('remote-video');
+
+    ipcRenderer.on('reaction:set-stream', (_, ...tracks) => {
+      // Each argument is a MediaStreamTrack (or trackId string)
+      const stream = new MediaStream();
+      for (const track of tracks) {
+        if (track && typeof track === 'object' && track.kind) {
+          stream.addTrack(track);
+        }
+      }
+      video.srcObject = stream;
+    });
+
+    // If the main process sends a MediaStreamTrackId (string form),
+    // we can reconstruct via webFrame:
+    ipcRenderer.on('reaction:set-stream-id', (_, trackId) => {
+      try {
+        const { webFrame } = require('electron');
+        const source = webFrame.getMediaStreamSource(trackId);
+        if (source) {
+          video.srcObject = source;
+        }
+      } catch (e) {
+        console.error('Failed to set stream from ID:', e);
+      }
+    });
+
+    // Close: main process can also just destroy the window
+    ipcRenderer.on('reaction:close', () => {
+      video.srcObject = null;
+    });
+  </script>
+</body>
+</html>
