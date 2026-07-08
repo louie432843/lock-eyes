@@ -2,6 +2,10 @@
 
 Share glances on any video call via a private 1:1 video side channel.
 
+![Jim Halpert breaking the fourth wall](docs/jim-camera-stare.jpg)
+
+*The exact feeling Lock Eyes is going for.*
+
 ## What This Does
 
 Lock Eyes creates a private video connection between you and one other person on a video call. You each see the other's face in a small always-on-top window via your secondary camera. You can turn off your Zoom/Teams/Meet camera and be invisible to everyone — but your person still sees you. Either of you can kill it instantly.
