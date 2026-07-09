@@ -91,12 +91,20 @@ export default function App() {
 
     peer.onRemoteStream = (stream: MediaStream) => {
       remoteStreamRef.current = stream
-      // Attach to the in-window remote video element
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream
+      // Attach to the in-window remote video element.
+      // The video element may not be mounted yet (it only renders when
+      // state === 'live'), so we retry on the next frame after setState fires.
+      const attachStream = () => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream
+        } else {
+          // Not mounted yet — retry after React re-renders
+          requestAnimationFrame(attachStream)
+        }
       }
+      attachStream()
+
       // Pass the stream's tracks to the reaction window via the preload API
-      // (the main process forwards them to the reaction window's video element)
       try {
         window.electronAPI.sendReactionStream(stream.getTracks())
       } catch {
@@ -202,6 +210,15 @@ export default function App() {
   useEffect(() => {
     if (state === 'live') {
       window.electronAPI.openReactionWindow()
+      // Re-attach local stream — the live screen's <video> is a different
+      // DOM element than the idle screen's, so srcObject was lost on unmount.
+      if (localStreamRef.current && localVideoRef.current) {
+        localVideoRef.current.srcObject = localStreamRef.current
+      }
+      // Also re-attach remote stream if it arrived before the element mounted.
+      if (remoteStreamRef.current && remoteVideoRef.current) {
+        remoteVideoRef.current.srcObject = remoteStreamRef.current
+      }
     }
     // Close reaction window when leaving live state
     if (state === 'dark' || state === 'error' || state === 'idle') {
@@ -297,9 +314,14 @@ export default function App() {
     }
     freshPeer.onRemoteStream = (stream: MediaStream) => {
       remoteStreamRef.current = stream
-      if (remoteVideoRef.current) {
-        remoteVideoRef.current.srcObject = stream
+      const attachStream = () => {
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.srcObject = stream
+        } else {
+          requestAnimationFrame(attachStream)
+        }
       }
+      attachStream()
       try {
         window.electronAPI.sendReactionStream(stream.getTracks())
       } catch {
