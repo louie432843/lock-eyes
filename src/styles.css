@@ -83,6 +83,27 @@ html, body {
   flex-shrink: 0;
 }
 
+/* Sticky action bar — always visible during live/waiting/creating */
+.action-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 16px;
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+}
+
+.btn-action {
+  font-size: 13px;
+  padding: 7px 16px;
+  min-height: 32px;
+}
+
 .logo {
   display: flex;
   align-items: center;
@@ -650,23 +671,6 @@ html, body {
   border-radius: 8px;
   font-size: 16px;
   line-height: 1;
-}
-
-/* ---------------------------------------------------------------------------
-   Live controls — hide self + KILL row
-   --------------------------------------------------------------------------- */
-
-.live-controls {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.btn-toggle-preview {
-  font-size: 13px;
-  padding: 8px 14px;
 }
 
 /* ---------------------------------------------------------------------------

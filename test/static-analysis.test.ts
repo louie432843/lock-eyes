@@ -372,6 +372,14 @@ describe('Static Analysis', () => {
       expect(app).toContain('if (remoteStreamRef.current)')
       expect(app).toContain('openReactionWindow')
     })
+
+    it('has sticky action bar with hide self and kill buttons', () => {
+      expect(app).toContain('action-bar')
+      expect(app).toContain('btn-action')
+      expect(app).toContain('Hide self')
+      expect(app).toContain('Show self')
+      expect(app).toContain('KILL')
+    })
   })
 
   describe('src/global.d.ts', () => {

@@ -143,7 +143,7 @@ describe('App', () => {
       mockPeerInstance.onPartnerName?.('Katherine')
 
       await waitFor(() => {
-        expect(screen.getByText('KILL')).toBeTruthy()
+        expect(screen.getByText('🔴 KILL')).toBeTruthy()
       })
 
       expect(screen.getByText(/LIVE to Katherine/i)).toBeTruthy()
@@ -155,10 +155,10 @@ describe('App', () => {
       mockPeerInstance.onPartnerName?.('Test')
 
       await waitFor(() => {
-        expect(screen.getByText('KILL')).toBeTruthy()
+        expect(screen.getByText('🔴 KILL')).toBeTruthy()
       })
 
-      fireEvent.click(screen.getByText('KILL'))
+      fireEvent.click(screen.getByText('🔴 KILL'))
       expect(mockPeerInstance.killConnection).toHaveBeenCalled()
     })
   })

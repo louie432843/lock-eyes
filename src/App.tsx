@@ -499,6 +499,23 @@ export default function App() {
         </div>
       </header>
 
+      {/* --- Sticky action bar — always accessible during active sessions --- */}
+      {(state === 'live' || state === 'waiting' || state === 'creating') && (
+        <div className="action-bar">
+          {state === 'live' && (
+            <button
+              className="btn btn-secondary btn-action"
+              onClick={() => setShowLocalPreview((v) => !v)}
+            >
+              {showLocalPreview ? '🙈 Hide self' : '👁 Show self'}
+            </button>
+          )}
+          <button className="btn btn-danger btn-action" onClick={handleKill}>
+            {state === 'live' ? '🔴 KILL' : '✕ Cancel'}
+          </button>
+        </div>
+      )}
+
       {/* --- Handshake overlay (shown when incoming request) --- */}
       {showHandshake && (
         <Handshake partnerName={handshakePartner} onAccept={handleAccept} onDecline={handleDecline} />
@@ -638,18 +655,6 @@ export default function App() {
               incomingMove={gameMove}
               incomingReset={gameReset}
             />
-
-            <div className="live-controls">
-              <button
-                className="btn btn-secondary btn-toggle-preview"
-                onClick={() => setShowLocalPreview((v) => !v)}
-              >
-                {showLocalPreview ? '🙈 Hide self' : '👁 Show self'}
-              </button>
-              <button className="btn btn-danger btn-kill" onClick={handleKill}>
-                KILL
-              </button>
-            </div>
           </div>
         )}
 
