@@ -6,11 +6,12 @@ dist/
 dist-electron/
 release/
 
-# Electron
+# Electron (but allow installers/ directory)
 *.AppImage
 *.dmg
 *.exe
 *.snap
+!installers/**
 
 # OS
 .DS_Store
