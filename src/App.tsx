@@ -61,6 +61,9 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState<string>('')
 
+  // --- Local preview visibility (hide "what they see" in live state) ---
+  const [showLocalPreview, setShowLocalPreview] = useState<boolean>(true)
+
   // --- Video element refs -----------------------------------------------------
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -523,21 +526,31 @@ export default function App() {
               />
             </div>
 
-            {/* Local preview — what they see (your secondary camera) */}
-            <div className="video-section">
-              <label className="camera-label">What they see (your camera)</label>
-              <video
-                ref={localVideoRef}
-                className="camera-preview"
-                autoPlay
-                playsInline
-                muted
-              />
-            </div>
+            {/* Local preview — what they see (your secondary camera) — collapsible */}
+            {showLocalPreview && (
+              <div className="video-section">
+                <label className="camera-label">What they see (your camera)</label>
+                <video
+                  ref={localVideoRef}
+                  className="camera-preview"
+                  autoPlay
+                  playsInline
+                  muted
+                />
+              </div>
+            )}
 
-            <button className="btn btn-danger btn-kill" onClick={handleKill}>
-              KILL
-            </button>
+            <div className="live-controls">
+              <button
+                className="btn btn-secondary btn-toggle-preview"
+                onClick={() => setShowLocalPreview((v) => !v)}
+              >
+                {showLocalPreview ? '🙈 Hide self' : '👁 Show self'}
+              </button>
+              <button className="btn btn-danger btn-kill" onClick={handleKill}>
+                KILL
+              </button>
+            </div>
           </div>
         )}
 
@@ -587,8 +600,8 @@ export default function App() {
                 if (e.key === 'Enter') handleSendChat()
               }}
             />
-            <button className="btn btn-secondary chat-send" onClick={handleSendChat} disabled={!chatInput.trim()}>
-              Send
+            <button className="btn btn-secondary chat-send" onClick={handleSendChat} disabled={!chatInput.trim()} aria-label="Send message">
+              ➤
             </button>
           </div>
         </div>

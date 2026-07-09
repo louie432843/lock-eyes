@@ -617,6 +617,7 @@ html, body {
 
 .chat-input-row {
   display: flex;
+  align-items: center;
   gap: 8px;
   padding: 10px 16px;
   border-top: 1px solid var(--border);
@@ -625,11 +626,37 @@ html, body {
 .chat-input {
   flex: 1;
   font-size: 14px;
+  min-width: 0;
 }
 
 .chat-send {
   flex-shrink: 0;
-  padding: 8px 16px;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* ---------------------------------------------------------------------------
+   Live controls — hide self + KILL row
+   --------------------------------------------------------------------------- */
+
+.live-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.btn-toggle-preview {
+  font-size: 13px;
+  padding: 8px 14px;
 }
 
 /* Stream-in animation: slide up + fade in */

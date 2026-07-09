@@ -254,7 +254,7 @@ describe('App', () => {
 
       const input = screen.getByPlaceholderText('Type a message… (no history)') as HTMLInputElement
       fireEvent.change(input, { target: { value: 'did you see that?' } })
-      fireEvent.click(screen.getByText('Send'))
+      fireEvent.click(screen.getByLabelText('Send message'))
 
       expect(mockPeerInstance.sendChatMessage).toHaveBeenCalledWith('did you see that?', expect.any(String))
     })
@@ -269,7 +269,7 @@ describe('App', () => {
       })
 
       // Send button should be disabled
-      const sendBtn = screen.getByText('Send')
+      const sendBtn = screen.getByLabelText('Send message')
       expect(sendBtn.getAttribute('disabled')).not.toBeNull()
     })
 
@@ -309,6 +309,63 @@ describe('App', () => {
       fireEvent.keyDown(input, { key: 'Enter' })
 
       expect(mockPeerInstance.sendChatMessage).toHaveBeenCalledWith('wow', expect.any(String))
+    })
+  })
+
+  describe('hide/show local preview', () => {
+    it('shows Hide self button in live state', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('🙈 Hide self')).toBeTruthy()
+      })
+    })
+
+    it('hides local video preview when Hide self is clicked', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('🙈 Hide self')).toBeTruthy()
+      })
+
+      // "What they see" label should be visible
+      expect(screen.getByText('What they see (your camera)')).toBeTruthy()
+
+      fireEvent.click(screen.getByText('🙈 Hide self'))
+
+      // Now the label should be gone and button should say "Show self"
+      await waitFor(() => {
+        expect(screen.getByText('👁 Show self')).toBeTruthy()
+      })
+      expect(screen.queryByText('What they see (your camera)')).toBeNull()
+    })
+
+    it('shows local video preview again when Show self is clicked', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('🙈 Hide self')).toBeTruthy()
+      })
+
+      // Hide
+      fireEvent.click(screen.getByText('🙈 Hide self'))
+      await waitFor(() => {
+        expect(screen.getByText('👁 Show self')).toBeTruthy()
+      })
+      expect(screen.queryByText('What they see (your camera)')).toBeNull()
+
+      // Show again
+      fireEvent.click(screen.getByText('👁 Show self'))
+      await waitFor(() => {
+        expect(screen.getByText('🙈 Hide self')).toBeTruthy()
+      })
+      expect(screen.getByText('What they see (your camera)')).toBeTruthy()
     })
   })
 })
