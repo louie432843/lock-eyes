@@ -214,6 +214,26 @@ describe('Static Analysis', () => {
       expect(peer).toContain('export interface ChatMessage')
     })
 
+    it('exports GameMove and GameReset interfaces', () => {
+      expect(peer).toContain('export interface GameMove')
+      expect(peer).toContain('export interface GameReset')
+    })
+
+    it('has sendGameMove and sendGameReset methods', () => {
+      expect(peer).toContain('sendGameMove')
+      expect(peer).toContain('sendGameReset')
+    })
+
+    it('has onGameMove and onGameReset callbacks', () => {
+      expect(peer).toContain('onGameMove')
+      expect(peer).toContain('onGameReset')
+    })
+
+    it('handles game:move and game:reset message types', () => {
+      expect(peer).toContain("case 'game:move'")
+      expect(peer).toContain("case 'game:reset'")
+    })
+
     it('handles chat message type in handleDataMessage', () => {
       expect(peer).toContain("case 'chat'")
       expect(peer).toContain('onChatMessage')
@@ -318,6 +338,39 @@ describe('Static Analysis', () => {
       expect(app).toContain("'handshake'")
       // The chat overlay condition should include these states
       expect(app).toMatch(/state === 'live' .* state === 'waiting'/)
+    })
+
+    it('imports TicTacToe component', () => {
+      expect(app).toContain("from './TicTacToe'")
+      expect(app).toContain('TicTacToe')
+    })
+
+    it('has game state and refs', () => {
+      expect(app).toContain('gameMove')
+      expect(app).toContain('gameReset')
+      expect(app).toContain('myGameSymbol')
+    })
+
+    it('assigns X to host and O to guest', () => {
+      expect(app).toContain("setMyGameSymbol('X')")
+      expect(app).toContain("setMyGameSymbol('O')")
+    })
+
+    it('has window focus tracking for chat accumulation', () => {
+      expect(app).toContain('windowFocusedRef')
+      expect(app).toContain('pendingExpiryRef')
+      expect(app).toContain("addEventListener('focus'")
+      expect(app).toContain("addEventListener('blur'")
+    })
+
+    it('has unread badge for accumulated chat messages', () => {
+      expect(app).toContain('chat-unread-badge')
+      expect(app).toContain('unread')
+    })
+
+    it('only opens reaction window when remote stream exists', () => {
+      expect(app).toContain('if (remoteStreamRef.current)')
+      expect(app).toContain('openReactionWindow')
     })
   })
 
@@ -427,6 +480,26 @@ describe('Static Analysis', () => {
       expect(css).toContain('.chat-stream')
       expect(css).toContain('chat-stream-in')
       expect(css).toContain('chat-fade-out')
+    })
+
+    it('styles.css has tic-tac-toe styles', () => {
+      const css = readSource('src/styles.css')
+      expect(css).toContain('.tictactoe')
+      expect(css).toContain('.tictactoe-board')
+      expect(css).toContain('.tictactoe-cell')
+      expect(css).toContain('.cell-x')
+      expect(css).toContain('.cell-o')
+    })
+
+    it('styles.css has unread badge style', () => {
+      const css = readSource('src/styles.css')
+      expect(css).toContain('.chat-unread-badge')
+    })
+
+    it('TicTacToe.tsx exists and exports component', () => {
+      const ttt = readSource('src/TicTacToe.tsx')
+      expect(ttt).toContain('export default function TicTacToe')
+      expect(ttt).toContain('WINNING_LINES')
     })
   })
 })

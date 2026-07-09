@@ -568,6 +568,16 @@ html, body {
   max-height: 280px;
 }
 
+.chat-unread-badge {
+  text-align: center;
+  padding: 6px 12px;
+  background: var(--accent);
+  color: #000;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 .chat-stream {
   display: flex;
   flex-direction: column;
@@ -657,6 +667,80 @@ html, body {
 .btn-toggle-preview {
   font-size: 13px;
   padding: 8px 14px;
+}
+
+/* ---------------------------------------------------------------------------
+   Tic-tac-toe
+   --------------------------------------------------------------------------- */
+
+.tictactoe {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tictactoe-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.tictactoe-status {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.tictactoe-symbol {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.tictactoe-board {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  aspect-ratio: 1;
+  max-width: 180px;
+  margin: 0 auto;
+}
+
+.tictactoe-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s;
+  padding: 0;
+  aspect-ratio: 1;
+}
+
+.tictactoe-cell:hover:not(:disabled) {
+  background: rgba(255, 184, 0, 0.1);
+  border-color: var(--accent);
+}
+
+.tictactoe-cell:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.cell-x { color: var(--accent); }
+.cell-o { color: #4a9eff; }
+
+.tictactoe-reset {
+  margin-top: 10px;
+  width: 100%;
+  font-size: 13px;
 }
 
 /* Stream-in animation: slide up + fade in */

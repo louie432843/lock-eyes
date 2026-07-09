@@ -17,8 +17,9 @@
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { LockEyesPeer, type ConnectionState, type ChatMessage } from './peer'
+import { LockEyesPeer, type ConnectionState, type ChatMessage, type GameMove, type GameReset } from './peer'
 import Handshake from './Handshake'
+import TicTacToe from './TicTacToe'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -61,8 +62,45 @@ export default function App() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatInput, setChatInput] = useState<string>('')
 
+  // --- Window focus tracking for chat accumulation ---
+  const windowFocusedRef = useRef<boolean>(true)
+  const [windowFocused, setWindowFocused] = useState<boolean>(true)
+  const pendingExpiryRef = useRef<Set<number>>(new Set()) // timestamps of messages waiting to expire
+
+  useEffect(() => {
+    const onFocus = () => {
+      windowFocusedRef.current = true
+      setWindowFocused(true)
+      // Start staggered expiry for all pending messages (oldest first, 1s apart)
+      const pending = Array.from(pendingExpiryRef.current).sort()
+      pendingExpiryRef.current.clear()
+      pending.forEach((ts, i) => {
+        setTimeout(() => {
+          setChatMessages((prev) => prev.filter((m) => m.timestamp !== ts))
+        }, 8000 + i * 1000)
+      })
+    }
+    const onBlur = () => {
+      windowFocusedRef.current = false
+      setWindowFocused(false)
+    }
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('blur', onBlur)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('blur', onBlur)
+    }
+  }, [])
+
   // --- Local preview visibility (hide "what they see" in live state) ---
   const [showLocalPreview, setShowLocalPreview] = useState<boolean>(true)
+
+  // --- Tic-tac-toe game state ---
+  const [gameMove, setGameMove] = useState<GameMove | null>(null)
+  const [gameReset, setGameReset] = useState<GameReset | null>(null)
+  const [myGameSymbol, setMyGameSymbol] = useState<'X' | 'O'>('X')
+  const gameMoveRef = useRef<GameMove | null>(null)
+  const gameResetRef = useRef<GameReset | null>(null)
 
   // --- Video element refs -----------------------------------------------------
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -94,6 +132,12 @@ export default function App() {
 
     peer.onRemoteStream = (stream: MediaStream) => {
       remoteStreamRef.current = stream
+      // Open the reaction window now that we actually have video to show.
+      try {
+        window.electronAPI.openReactionWindow()
+      } catch {
+        // IPC may not be available in dev mode — ignore
+      }
       // Attach to the in-window remote video element.
       // The video element may not be mounted yet (it only renders when
       // state === 'live'), so we retry on the next frame after setState fires.
@@ -120,12 +164,28 @@ export default function App() {
     }
 
     peer.onChatMessage = (message: ChatMessage) => {
-      // Stream the message in — add to list, then remove after 8 seconds.
-      // No history stored. If you don't see it, you miss it.
+      // Stream the message in — add to list.
+      // If window is focused: start 8s expiry timer immediately.
+      // If unfocused: hold it — don't expire until window regains focus.
       setChatMessages((prev) => [...prev, message])
-      setTimeout(() => {
-        setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
-      }, 8000)
+      if (windowFocusedRef.current) {
+        setTimeout(() => {
+          setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
+        }, 8000)
+      } else {
+        pendingExpiryRef.current.add(message.timestamp)
+      }
+    }
+
+    peer.onGameMove = (move: GameMove) => {
+      // Use a new object each time so React's useEffect detects the change
+      gameMoveRef.current = { ...move }
+      setGameMove(gameMoveRef.current)
+    }
+
+    peer.onGameReset = (reset: GameReset) => {
+      gameResetRef.current = { ...reset }
+      setGameReset(gameResetRef.current)
     }
 
     return () => {
@@ -207,12 +267,11 @@ export default function App() {
   }, [selectedCamera, startCamera])
 
   // =========================================================================
-  // Auto-open reaction window when going live
+  // Reaction window — only open when we actually have a remote stream
   // =========================================================================
 
   useEffect(() => {
     if (state === 'live') {
-      window.electronAPI.openReactionWindow()
       // Re-attach local stream — the live screen's <video> is a different
       // DOM element than the idle screen's, so srcObject was lost on unmount.
       if (localStreamRef.current && localVideoRef.current) {
@@ -221,6 +280,10 @@ export default function App() {
       // Also re-attach remote stream if it arrived before the element mounted.
       if (remoteStreamRef.current && remoteVideoRef.current) {
         remoteVideoRef.current.srcObject = remoteStreamRef.current
+      }
+      // Open reaction window only if we actually have a remote stream
+      if (remoteStreamRef.current) {
+        window.electronAPI.openReactionWindow()
       }
     }
     // Close reaction window when leaving live state
@@ -236,8 +299,8 @@ export default function App() {
   /** User clicked "Create Session" — calls peer.createSession() */
   const handleCreate = useCallback(async () => {
     if (!peerRef.current) return
-    // Pass the host's name so it can be sent to the guest on accept.
     peerRef.current.setHostName(yourName.trim() || 'Host')
+    setMyGameSymbol('X') // Host is X
     try {
       const code = await peerRef.current.createSession()
       setSessionCode(code)
@@ -255,6 +318,7 @@ export default function App() {
       setErrorMsg('Code must be 4 characters.')
       return
     }
+    setMyGameSymbol('O') // Guest is O
     try {
       await peerRef.current.joinSession(code, yourName.trim() || 'Anonymous')
     } catch (err) {
@@ -288,9 +352,13 @@ export default function App() {
     // Show our own message in the stream
     const message: ChatMessage = { text, sender, timestamp: Date.now() }
     setChatMessages((prev) => [...prev, message])
-    setTimeout(() => {
-      setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
-    }, 8000)
+    if (windowFocusedRef.current) {
+      setTimeout(() => {
+        setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
+      }, 8000)
+    } else {
+      pendingExpiryRef.current.add(message.timestamp)
+    }
     // Send to partner
     peerRef.current.sendChatMessage(text, sender)
     setChatInput('')
@@ -317,6 +385,11 @@ export default function App() {
     }
     freshPeer.onRemoteStream = (stream: MediaStream) => {
       remoteStreamRef.current = stream
+      try {
+        window.electronAPI.openReactionWindow()
+      } catch {
+        // ignore
+      }
       const attachStream = () => {
         if (remoteVideoRef.current) {
           remoteVideoRef.current.srcObject = stream
@@ -336,9 +409,21 @@ export default function App() {
     }
     freshPeer.onChatMessage = (message: ChatMessage) => {
       setChatMessages((prev) => [...prev, message])
-      setTimeout(() => {
-        setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
-      }, 8000)
+      if (windowFocusedRef.current) {
+        setTimeout(() => {
+          setChatMessages((prev) => prev.filter((m) => m.timestamp !== message.timestamp))
+        }, 8000)
+      } else {
+        pendingExpiryRef.current.add(message.timestamp)
+      }
+    }
+    freshPeer.onGameMove = (move: GameMove) => {
+      gameMoveRef.current = { ...move }
+      setGameMove(gameMoveRef.current)
+    }
+    freshPeer.onGameReset = (reset: GameReset) => {
+      gameResetRef.current = { ...reset }
+      setGameReset(gameResetRef.current)
     }
     // Re-attach local camera stream if still active
     if (localStreamRef.current) {
@@ -355,6 +440,11 @@ export default function App() {
     setIdleMode('home')
     setChatMessages([])
     setChatInput('')
+    setGameMove(null)
+    setGameReset(null)
+    gameMoveRef.current = null
+    gameResetRef.current = null
+    pendingExpiryRef.current.clear()
   }, [])
 
   /** Retry from error state */
@@ -540,6 +630,15 @@ export default function App() {
               </div>
             )}
 
+            {/* Tic-tac-toe game */}
+            <TicTacToe
+              mySymbol={myGameSymbol}
+              onMove={(pos) => peerRef.current?.sendGameMove(pos, myGameSymbol)}
+              onReset={() => peerRef.current?.sendGameReset(myGameSymbol)}
+              incomingMove={gameMove}
+              incomingReset={gameReset}
+            />
+
             <div className="live-controls">
               <button
                 className="btn btn-secondary btn-toggle-preview"
@@ -580,6 +679,11 @@ export default function App() {
       {/* ============ STREAMING CHAT (no history — if you don't see it, you miss it) ============ */}
       {(state === 'live' || state === 'waiting' || state === 'handshake') && (
         <div className="chat-overlay">
+          {chatMessages.length > 0 && !windowFocused && (
+            <div className="chat-unread-badge">
+              💬 {chatMessages.length} unread — click to read
+            </div>
+          )}
           <div className="chat-stream">
             {chatMessages.map((msg) => (
               <div key={msg.timestamp} className="chat-bubble chat-stream-in">

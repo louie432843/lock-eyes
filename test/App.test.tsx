@@ -16,6 +16,8 @@ const mockPeerInstance = {
   onRemoteStream: null as any,
   onError: null as any,
   onChatMessage: null as any,
+  onGameMove: null as any,
+  onGameReset: null as any,
   createSession: vi.fn(),
   joinSession: vi.fn(),
   acceptHandshake: vi.fn(),
@@ -24,6 +26,8 @@ const mockPeerInstance = {
   setLocalStream: vi.fn(),
   setHostName: vi.fn(),
   sendChatMessage: vi.fn(),
+  sendGameMove: vi.fn(),
+  sendGameReset: vi.fn(),
   destroy: vi.fn(),
   getRemoteStream: vi.fn().mockReturnValue(null),
 }
@@ -366,6 +370,158 @@ describe('App', () => {
         expect(screen.getByText('🙈 Hide self')).toBeTruthy()
       })
       expect(screen.getByText('What they see (your camera)')).toBeTruthy()
+    })
+  })
+
+  describe('tic-tac-toe game', () => {
+    it('renders the game board in live state', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('You are X')).toBeTruthy()
+      })
+
+      // 9 cells
+      const cells = document.querySelectorAll('.tictactoe-cell')
+      expect(cells.length).toBe(9)
+    })
+
+    it('shows New game button', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('↻ New game')).toBeTruthy()
+      })
+    })
+
+    it('calls sendGameMove when a cell is clicked', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('You are X')).toBeTruthy()
+      })
+
+      const cells = document.querySelectorAll('.tictactoe-cell')
+      fireEvent.click(cells[0])
+
+      expect(mockPeerInstance.sendGameMove).toHaveBeenCalledWith(0, 'X')
+    })
+
+    it('displays incoming moves from partner', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('You are X')).toBeTruthy()
+      })
+
+      // Simulate partner making a move
+      mockPeerInstance.onGameMove?.({ position: 4, player: 'O' })
+
+      await waitFor(() => {
+        const cells = document.querySelectorAll('.tictactoe-cell')
+        expect(cells[4].textContent).toBe('O')
+      })
+    })
+
+    it('calls sendGameReset when New game is clicked', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByText('↻ New game')).toBeTruthy()
+      })
+
+      fireEvent.click(screen.getByText('↻ New game'))
+      expect(mockPeerInstance.sendGameReset).toHaveBeenCalled()
+    })
+  })
+
+  describe('chat accumulation when unfocused', () => {
+    it('shows unread badge when messages arrive while unfocused', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      // Simulate window blur
+      window.dispatchEvent(new Event('blur'))
+
+      // Simulate incoming chat
+      mockPeerInstance.onChatMessage?.({
+        text: 'hello while away',
+        sender: 'Test',
+        timestamp: 1001,
+      })
+
+      await waitFor(() => {
+        expect(screen.getByText(/unread/i)).toBeTruthy()
+      })
+      expect(screen.getByText('hello while away')).toBeTruthy()
+    })
+
+    it('messages persist when unfocused (no expiry)', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      window.dispatchEvent(new Event('blur'))
+
+      mockPeerInstance.onChatMessage?.({
+        text: 'persisted',
+        sender: 'Test',
+        timestamp: 2001,
+      })
+
+      // Wait 2 seconds — message should still be there (no 8s expiry running)
+      await new Promise((r) => setTimeout(r, 2000))
+      expect(screen.queryByText('persisted')).toBeTruthy()
+    })
+
+    it('starts expiry when window regains focus', async () => {
+      render(<App />)
+      mockPeerInstance.onStateChange?.('live')
+      mockPeerInstance.onPartnerName?.('Test')
+
+      await waitFor(() => {
+        expect(screen.getByPlaceholderText('Type a message… (no history)')).toBeTruthy()
+      })
+
+      // Blur, receive message, refocus
+      window.dispatchEvent(new Event('blur'))
+      mockPeerInstance.onChatMessage?.({
+        text: 'will expire after refocus',
+        sender: 'Test',
+        timestamp: 3001,
+      })
+      await waitFor(() => {
+        expect(screen.getByText('will expire after refocus')).toBeTruthy()
+      })
+
+      window.dispatchEvent(new Event('focus'))
+
+      // Badge should disappear
+      await waitFor(() => {
+        expect(screen.queryByText(/unread/i)).toBeNull()
+      })
+
+      // Message should still be visible (8s timer just started)
+      expect(screen.getByText('will expire after refocus')).toBeTruthy()
     })
   })
 })

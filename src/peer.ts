@@ -70,6 +70,17 @@ export interface ChatMessage {
   timestamp: number
 }
 
+/** A tic-tac-toe game move. */
+export interface GameMove {
+  position: number  // 0-8 (3x3 grid, row-major)
+  player: 'X' | 'O'
+}
+
+/** A game reset request. */
+export interface GameReset {
+  initiatedBy: 'X' | 'O'
+}
+
 // ---------------------------------------------------------------------------
 // LockEyesPeer class
 // ---------------------------------------------------------------------------
@@ -130,6 +141,12 @@ export class LockEyesPeer {
    *  don't see it stream in, you miss it. */
   onChatMessage: ((message: ChatMessage) => void) | null = null
 
+  /** Called when the partner makes a tic-tac-toe move. */
+  onGameMove: ((move: GameMove) => void) | null = null
+
+  /** Called when the partner requests a game reset. */
+  onGameReset: ((reset: GameReset) => void) | null = null
+
   // -------------------------------------------------------------------------
   // Public API
   // -------------------------------------------------------------------------
@@ -171,6 +188,22 @@ export class LockEyesPeer {
       sender,
       timestamp: Date.now(),
     })
+  }
+
+  /**
+   * Send a tic-tac-toe move to the partner.
+   */
+  sendGameMove(position: number, player: 'X' | 'O'): void {
+    if (!this.dataConnection || !this.dataConnection.open) return
+    this.dataConnection.send({ type: 'game:move', position, player })
+  }
+
+  /**
+   * Send a game reset request to the partner.
+   */
+  sendGameReset(player: 'X' | 'O'): void {
+    if (!this.dataConnection || !this.dataConnection.open) return
+    this.dataConnection.send({ type: 'game:reset', initiatedBy: player })
   }
 
   /**
@@ -460,6 +493,25 @@ export class LockEyesPeer {
           timestamp: data.timestamp || Date.now(),
         }
         this.onChatMessage?.(message)
+        break
+      }
+
+      case 'game:move': {
+        // Tic-tac-toe move from partner.
+        const move: GameMove = {
+          position: typeof data.position === 'number' ? data.position : -1,
+          player: data.player === 'X' || data.player === 'O' ? data.player : 'X',
+        }
+        this.onGameMove?.(move)
+        break
+      }
+
+      case 'game:reset': {
+        // Game reset request from partner.
+        const reset: GameReset = {
+          initiatedBy: data.initiatedBy === 'X' || data.initiatedBy === 'O' ? data.initiatedBy : 'X',
+        }
+        this.onGameReset?.(reset)
         break
       }
     }
