@@ -116,9 +116,10 @@ export default function App() {
 
     peer.onStateChange = (newState: ConnectionState) => {
       setState(newState)
-      // When connection goes dark/error, clear partner info
+      // When connection goes dark/error, clear partner info and handshake
       if (newState === 'dark' || newState === 'error') {
         setPartnerName('')
+        setHandshakePartner('')
       }
     }
 
@@ -197,7 +198,11 @@ export default function App() {
         localStreamRef.current = null
       }
       // Remove preload listeners
-      window.electronAPI.removeAllListeners()
+      try {
+        window.electronAPI.removeAllListeners()
+      } catch {
+        // May not be available in dev mode
+      }
     }
   }, [])
 
@@ -216,7 +221,7 @@ export default function App() {
           setSelectedCamera(cams[0].deviceId)
         }
       } catch {
-        // Camera listing may fail before permissions granted; ignore
+        // Camera listing may fail before permissions granted or in dev mode; ignore
       }
     })()
     return () => {
@@ -283,12 +288,20 @@ export default function App() {
       }
       // Open reaction window only if we actually have a remote stream
       if (remoteStreamRef.current) {
-        window.electronAPI.openReactionWindow()
+        try {
+          window.electronAPI.openReactionWindow()
+        } catch {
+          // IPC may not be available in dev mode
+        }
       }
     }
     // Close reaction window when leaving live state
     if (state === 'dark' || state === 'error' || state === 'idle') {
-      window.electronAPI.closeReactionWindow()
+      try {
+        window.electronAPI.closeReactionWindow()
+      } catch {
+        // IPC may not be available in dev mode
+      }
     }
   }, [state])
 
@@ -375,6 +388,7 @@ export default function App() {
       setState(newState)
       if (newState === 'dark' || newState === 'error') {
         setPartnerName('')
+        setHandshakePartner('')
       }
     }
     freshPeer.onPartnerName = (name: string) => {
@@ -479,7 +493,7 @@ export default function App() {
     error: 'dot-red',
   }
 
-  const showHandshake = state === 'handshake' || (!!handshakePartner && state !== 'live')
+  const showHandshake = state === 'handshake'
 
   // =========================================================================
   // Render
@@ -607,9 +621,6 @@ export default function App() {
               <span className="pulse-dot" />
               <span className="pulse-text">Waiting for partner…</span>
             </div>
-            <button className="btn btn-secondary" onClick={handleKill}>
-              Cancel
-            </button>
           </div>
         )}
 

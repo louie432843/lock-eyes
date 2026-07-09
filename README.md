@@ -12,17 +12,26 @@ Lock Eyes creates a private video connection between you and one other person on
 
 **Not a Zoom app. A glance app. Use it on any call.**
 
-## How to Test This
+## Features
+
+- **Private 1:1 video** — see your partner's face via secondary camera, independent of Zoom
+- **Streaming chat** — ephemeral messages that fade after 8 seconds. No history stored
+- **Tic-tac-toe** — play a quick game with your partner during boring meetings
+- **Hide self** — toggle your own camera preview on/off
+- **Kill switch** — either party can kill the connection instantly, no explanation needed
+- **Screenshot protection** — reaction window has content protection enabled
+- **Chat accumulation** — if the window is unfocused, messages pile up and expire when you return
+
+## How to Use
 
 1. Get on a Zoom call (or Teams, Meet, whatever) with your friend
 2. Both open Lock Eyes
 3. One clicks "Create Session" — share the 4-letter code
 4. Other types the code, clicks "Join" — first person clicks "Accept"
-5. Both pick their secondary camera, click "Lock Eyes"
+5. Both pick their secondary camera
+6. You're live — share glances when someone says something wild
 
-A small window pops up showing their face. They see yours. Share glances when someone says something wild.
-
-**To kill it:** Click the KILL button or close the reaction window. Instant. Both sides go dark.
+**To kill it:** Click the KILL button. Instant. Both sides go dark.
 
 ## How to Run (Development)
 
@@ -30,12 +39,8 @@ A small window pops up showing their face. They see yours. Share glances when so
 # Install dependencies
 npm install
 
-# Run in dev mode (starts Vite dev server + Electron)
+# Run in dev mode (Vite + Electron auto-starts)
 npm run electron:dev
-
-# Or run Vite and Electron separately:
-# Terminal 1: npm run dev
-# Terminal 2: npx electron .
 
 # Build for production
 npm run build
@@ -43,16 +48,19 @@ npm run build
 # Run in production mode (without dev server)
 LOCK_EYES_PROD=1 npx electron . --no-sandbox
 
-# Package as installer
-npm run package:mac    # macOS .dmg
+# Build installers for all platforms
+npm run build:all
+
+# Or build for a single platform:
+npm run package:mac    # macOS
 npm run package:win    # Windows .exe
 npm run package:linux  # Linux .AppImage
 ```
 
 ## How to Test with a Friend
 
-1. Build the app for your platform: `npm run package:linux` (or mac/win)
-2. Send the installer to your friend
+1. Build installers: `npm run build:all`
+2. Send the appropriate installer to your friend
 3. Both install and open Lock Eyes
 4. Both pick your secondary camera (USB webcam, etc.)
 5. One creates a session, shares the code
@@ -105,18 +113,21 @@ lock-eyes/
 ├── vite.config.ts        # Vite + Electron build config
 ├── tsconfig.json         # TypeScript config
 ├── index.html            # Vite entry point
-├── reaction.html        # Reaction window HTML (standalone, not used in current build)
+├── scripts/
+│   └── build-all.sh      # Build installers for all 3 platforms
 ├── electron/
 │   ├── main.ts           # Electron main process — window management, reaction window, permissions, IPC
 │   ├── preload.ts        # Secure bridge — exposes window.electronAPI to renderer
-│   └── peer.ts           # LockEyesPeer class — PeerJS connection lifecycle (imported by renderer)
+│   └── reaction-preload.ts # Preload for the reaction window
 ├── src/
 │   ├── main.tsx          # React entry point
-│   ├── App.tsx           # Main UI — session creation/joining, camera picker, live view, kill switch
+│   ├── App.tsx           # Main UI — session creation/joining, camera picker, live view, chat, kill switch
 │   ├── Handshake.tsx     # Accept/decline modal for incoming "lock eyes" requests
+│   ├── TicTacToe.tsx     # Tic-tac-toe game playable over the data channel
+│   ├── peer.ts           # LockEyesPeer class — PeerJS connection lifecycle, chat, game moves
 │   └── styles.css        # Dark theme with amber accent, pulse animations, status indicators
 ├── dist/                 # Built frontend (Vite output)
-├── dist-electron/        # Built Electron main/preload/peer (Vite output)
+├── dist-electron/        # Built Electron main/preload (Vite output)
 └── release/              # Packaged installers (electron-builder output)
 ```
 
@@ -127,7 +138,7 @@ lock-eyes/
 3. **Host** receives request → sees "Katherine wants to lock eyes. Accept?" → clicks Accept
 4. **Host** sends `{type: 'accept'}` → initiates `peer.call(remotePeerId, localStream)` with secondary camera
 5. **Guest** receives call → answers with their local stream → both sides have remote video
-6. **Reaction window** auto-opens on second display showing partner's face
+6. **Reaction window** auto-opens showing partner's face
 7. Either side can kill: closes PeerJS peer, stops media connection, closes reaction window
 
 ### Key Design Decisions
@@ -138,6 +149,8 @@ lock-eyes/
 - **Content protection** — the reaction window uses `setContentProtection(true)` to block screenshots and screen recording
 - **`lockeyes-` prefix** on all PeerJS peer IDs prevents collision with other PeerJS users
 - **Ambiguous characters excluded** from session codes (no O/0/I/1/L)
+- **Ephemeral chat** — messages stream in and fade after 8 seconds. No history is stored anywhere
+- **Tic-tac-toe over data channel** — moves sync via the PeerJS data connection, no server needed
 
 ## Privacy & Safety
 
@@ -146,7 +159,8 @@ lock-eyes/
 - **Camera independence:** Your Zoom camera state doesn't affect Lock Eyes
 - **Screenshot protection:** Reaction window has content protection enabled
 - **Status indicator:** Always know when you're being seen (green dot = LIVE)
-- **No recording, no audio, no chat** — video only, ephemeral
+- **No recording, no audio** — video only, ephemeral chat
+- **Chat messages are not stored** — they fade after 8 seconds and are gone forever
 
 ## Troubleshooting
 
@@ -157,8 +171,10 @@ lock-eyes/
 | Video doesn't connect | Check firewall/NAT. PeerJS uses Google STUN by default. May need TURN server for restrictive networks. |
 | Camera not listed | Grant camera permission in OS settings. Some cameras need to be plugged in before app launch. |
 | Reaction window doesn't appear | Ensure you have a second display, or drag the main window to see it |
+| Black video for both parties | Ensure both users have selected a camera before creating/joining the session |
+| Chat messages disappear too fast | Messages expire after 8 seconds. If the window is unfocused, they accumulate until you return |
 
 ---
 
-*Built: July 8, 2026*
-*Version: 0.1.0 — MVP*
+*Built: July 9, 2026*
+*Version: 0.1.0*

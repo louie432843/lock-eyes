@@ -2,6 +2,7 @@
   "name": "lock-eyes",
   "version": "0.1.0",
   "description": "Lock Eyes — share glances on any video call via a private 1:1 side channel",
+  "author": "Louie Garofalo",
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
